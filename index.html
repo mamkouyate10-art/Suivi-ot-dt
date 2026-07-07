@@ -231,6 +231,51 @@ tbody tr:hover{background:#16282f}
     </div>
   </section>
 
+  <style>
+    .wk-card{padding:0;overflow:hidden}
+    .wk-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px}
+    .wk-toggle{flex:1;min-width:210px;display:flex;align-items:center;gap:10px;background:none;border:none;color:var(--ink);cursor:pointer;text-align:left;font:inherit;padding:0}
+    .wk-chev{width:16px;height:16px;flex:none;color:var(--cyan);transition:transform .18s}
+    .wk-card:not(.collapsed) .wk-chev{transform:rotate(90deg)}
+    .wk-title{font-family:var(--disp);font-weight:600;font-size:15px}
+    .wk-count{background:var(--panel2);border:1px solid var(--line);color:var(--cyan);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600;min-width:24px;text-align:center}
+    .wk-ctrls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .wk-week{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+    .wk-week input{width:56px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px 8px;font-size:13px;text-align:center}
+    .wk-step{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:7px;width:28px;height:30px;cursor:pointer;font-size:11px}
+    .wk-step:hover{border-color:var(--cyan);color:var(--cyan)}
+    .wk-bd{border-top:1px solid var(--line)}
+    .wk-card.collapsed .wk-bd{display:none}
+    .wk-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+    .wk-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;padding:9px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+    .wk-tbl td{padding:8px 12px;border-bottom:1px solid #172a30;vertical-align:top}
+    .wk-empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+  </style>
+  <section class="card wk-card collapsed" id="wkCard">
+    <div class="wk-hd">
+      <button class="wk-toggle" id="wkToggle" aria-expanded="false">
+        <svg class="wk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+        <span class="wk-title">DT/OT clôturées dans la semaine</span>
+        <span class="wk-count" id="wkCount">0</span>
+      </button>
+      <div class="wk-ctrls" onclick="event.stopPropagation()">
+        <div class="wk-week">
+          <button class="wk-step" id="wkPrev" title="Semaine précédente">◀</button>
+          <span>Semaine</span><input type="number" id="wkNum" min="1" max="53" step="1">
+          <button class="wk-step" id="wkNext" title="Semaine suivante">▶</button>
+        </div>
+        <button class="btn" id="wkExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 4v16M4 10h16"/></svg>Export Excel</button>
+      </div>
+    </div>
+    <div class="wk-bd" id="wkBody">
+      <div class="tbl-scroll">
+        <table class="wk-tbl"><thead><tr>
+          <th>N°</th><th>Type</th><th>Code</th><th>Équipement</th><th>Division</th><th>Description</th><th>Clôturé le</th><th style="text-align:center">Délai</th>
+        </tr></thead><tbody id="wkRows"></tbody></table>
+      </div>
+    </div>
+  </section>
+
   <section class="card">
     <div class="toolbar">
       <div class="search">
@@ -253,6 +298,7 @@ tbody tr:hover{background:#16282f}
           <th data-k="equipement">Équipement</th>
           <th data-k="division">Division</th>
           <th data-k="dateEmission">Émis</th>
+          <th data-k="semEmise" style="text-align:center">Sem. ém.</th>
           <th data-k="dateCloture">Clôt.</th>
           <th data-k="statut">Statut</th>
           <th style="text-align:right">Actions</th>
@@ -544,7 +590,7 @@ function filtered(){
 const numN=n=>{const m=/(\d+)\/(\d+)/.exec(n||'');return m?(+m[1])*1000+(+m[2]):0;};
 function rowsHtml(){
   const a=filtered();
-  if(!a.length){$('#rows').innerHTML=`<tr><td colspan="10"><div class="empty"><b>Aucun ordre ne correspond</b>Ajuste la recherche ou les filtres, ou crée un nouvel OT/DT.</div></td></tr>`;}
+  if(!a.length){$('#rows').innerHTML=`<tr><td colspan="11"><div class="empty"><b>Aucun ordre ne correspond</b>Ajuste la recherche ou les filtres, ou crée un nouvel OT/DT.</div></td></tr>`;}
   else $('#rows').innerHTML=a.map(r=>{
     const t=typeOf(r),sc=(STATUS[r.statut]||{c:'var(--faint)'}).c;
     const dl=days(r.dateEmission,r.dateCloture);
@@ -556,6 +602,7 @@ function rowsHtml(){
       <td>${esc(r.equipement)||'<span class="muted">—</span>'}</td>
       <td>${esc(r.division)||'<span class="muted">—</span>'}</td>
       <td class="mono muted">${fmtD(r.dateEmission)}</td>
+      <td class="mono" style="text-align:center;color:var(--cyan)">${r.semEmise!=null?r.semEmise:'<span class="muted">—</span>'}</td>
       <td class="mono ${r.dateCloture?'':'muted'}">${fmtD(r.dateCloture)||'—'}${dl!=null&&dl>=0?`<span class="muted" style="font-size:10px"> ·${dl}j</span>`:''}</td>
       <td><span class="st"><span class="led" style="background:${sc}"></span>${esc(r.statut)||'—'}</span></td>
       <td><div class="row-act">
@@ -566,7 +613,76 @@ function rowsHtml(){
   $('#count').textContent=`${a.length} ordre(s) affiché(s) · ${DATA.length} au total`;
 }
 const cleanDesc=d=>(d||'').replace(/^\s*(OT|DT)\s*,?\s*/i,'');
-function render(){kpis();donut();vbars();hbars();insights();rowsHtml();
+
+/* ---------- rapport hebdomadaire des clôtures ---------- */
+const WKKEY='srk_wkpanel_collapsed';
+function curWeek(){return weeknum(new Date().toISOString().slice(0,10));}
+function wkSelected(){const v=parseInt(($('#wkNum')||{}).value,10);return isNaN(v)?curWeek():v;}
+function wkItems(){
+  const wk=wkSelected();
+  return DATA.filter(r=>r.semCloturee===wk && r.statut==='Terminée')
+    .sort((a,b)=>{const ta=typeOf(a)==='DT'?0:1,tb=typeOf(b)==='DT'?0:1;if(ta!==tb)return ta-tb;return (a.dateCloture||'').localeCompare(b.dateCloture||'');});
+}
+function weekReport(){
+  if(!$('#wkRows'))return;
+  const items=wkItems();
+  $('#wkCount').textContent=items.length;
+  if(!items.length){$('#wkRows').innerHTML=`<tr><td colspan="8"><div class="wk-empty">Aucune clôture enregistrée pour la semaine ${wkSelected()}.</div></td></tr>`;return;}
+  $('#wkRows').innerHTML=items.map(r=>{
+    const t=typeOf(r);const dl=days(r.dateEmission,r.dateCloture);
+    return `<tr>
+      <td class="mono">${esc(r.n)}</td>
+      <td>${t?`<span class="tag tag--${t==='ANNULE'?'ANNULE':t}">${t}</span>`:'<span class="muted">—</span>'}</td>
+      <td class="mono muted" style="white-space:nowrap">${esc(r.code)||'—'}</td>
+      <td>${esc(r.equipement)||'<span class="muted">—</span>'}</td>
+      <td>${esc(r.division)||'<span class="muted">—</span>'}</td>
+      <td>${esc(cleanDesc(r.description))}</td>
+      <td class="mono muted" style="white-space:nowrap">${fmtD(r.dateCloture)}</td>
+      <td class="mono" style="text-align:center">${dl!=null?dl+'j':'—'}</td>
+    </tr>`;}).join('');
+}
+function wkSetCollapsed(c){
+  $('#wkCard').classList.toggle('collapsed',c);
+  $('#wkToggle').setAttribute('aria-expanded',String(!c));
+  try{localStorage.setItem(WKKEY,c?'1':'0');}catch(e){}
+}
+function wkExport(){
+  const items=wkItems(),wk=wkSelected();
+  if(!items.length){toast('Aucune clôture pour cette semaine');return;}
+  const today=new Date().toLocaleDateString('fr-FR');
+  const e2=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const heads=['N°','Type','Code','Équipement','Division','Description','Clôturé le','Délai (j)'];
+  const th=heads.map(h=>`<th style="background:#2FA7A0;color:#06222a;border:1px solid #1d5b57;padding:7px 9px;font-weight:bold;text-align:left">${h}</th>`).join('');
+  const rows=items.map((r,i)=>{
+    const bg=i%2?'#eef6f5':'#ffffff';const t=typeOf(r);const dl=days(r.dateEmission,r.dateCloture);
+    const cells=[r.n,t,r.code,r.equipement,r.division,cleanDesc(r.description),fmtD(r.dateCloture),dl!=null?dl:''];
+    return `<tr>${cells.map((c,j)=>`<td style="background:${bg};border:1px solid #cfe0de;padding:5px 9px;${j===7?'text-align:center;':''}mso-number-format:'\\@'">${e2(c)}</td>`).join('')}</tr>`;
+  }).join('');
+  const nDT=items.filter(r=>typeOf(r)==='DT').length, nOT=items.filter(r=>typeOf(r)==='OT').length;
+  const html=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>
+  <table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt">
+    <tr><td colspan="8" style="font-size:15pt;font-weight:bold;color:#0E3A3A;padding:6px 4px">Rapport hebdomadaire des clôtures — Sirakoro BID 100 MW</td></tr>
+    <tr><td colspan="8" style="color:#555;padding:2px 4px">Semaine ${wk} · ${items.length} clôture(s) — ${nDT} DT · ${nOT} OT · édité le ${today}</td></tr>
+    <tr><td colspan="8" style="height:6px"></td></tr>
+    <tr>${th}</tr>
+    ${rows}
+  </table></body></html>`;
+  dl(`Rapport_clotures_S${String(wk).padStart(2,'0')}_2026.xls`, '\uFEFF'+html, 'application/vnd.ms-excel');
+  toast('Rapport Excel exporté');
+}
+(function(){
+  const num=$('#wkNum');if(!num)return;
+  num.value=curWeek();
+  let collapsed=true;try{if(localStorage.getItem(WKKEY)==='0')collapsed=false;}catch(e){}
+  wkSetCollapsed(collapsed);
+  $('#wkToggle').onclick=()=>wkSetCollapsed(!$('#wkCard').classList.contains('collapsed'));
+  num.addEventListener('input',weekReport);
+  $('#wkPrev').onclick=()=>{num.value=Math.max(1,wkSelected()-1);weekReport();};
+  $('#wkNext').onclick=()=>{num.value=Math.min(53,wkSelected()+1);weekReport();};
+  $('#wkExport').onclick=wkExport;
+  weekReport();
+})();
+function render(){kpis();donut();vbars();hbars();insights();rowsHtml();weekReport();
   $('#chartScope').textContent=`${DATA.length} ordres · sem. 2→26`;
   $('#stamp').textContent='maj '+new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
 
