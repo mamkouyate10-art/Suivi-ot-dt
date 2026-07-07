@@ -158,6 +158,12 @@ tbody tr:hover{background:#16282f}
   .authlogo{width:54px;height:54px;border-radius:13px;margin:0 auto;display:grid;place-items:center;background:linear-gradient(145deg,#16343a,#0d2025);border:1px solid var(--line);color:var(--cyan);font-weight:800;letter-spacing:.08em;font-size:15px}
   .authcard input{width:100%;margin:7px 0;background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 13px;border-radius:9px;font-size:14px;outline:none}
   .authcard input:focus{border-color:var(--cyan)}
+  .pwwrap{position:relative;margin:7px 0}
+  .pwwrap input{margin:0;padding-right:42px}
+  .eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;display:grid;place-items:center}
+  .eye:hover,.eye.on{color:var(--cyan)}
+  .eye svg{width:18px;height:18px}
+  .linkbtn{background:none;border:none;color:var(--cyan);font-size:12.5px;cursor:pointer;margin-top:12px;padding:0;text-decoration:underline}
   .authbtns{display:flex;gap:9px;margin-top:14px}
   .abtn{flex:1;border:1px solid var(--line);background:var(--panel2);color:var(--ink);padding:11px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer}
   .abtn.primary{background:var(--cyan);color:#06222a;border-color:var(--cyan)}
@@ -171,12 +177,30 @@ tbody tr:hover{background:#16282f}
   <div class="authlogo">SRK</div>
   <h2>Suivi OT/DT — Sirakoro</h2>
   <p class="authsub">BID 100 MW · accès réservé</p>
-  <input id="aEmail" type="email" placeholder="e-mail" autocomplete="username">
-  <input id="aPass" type="password" placeholder="mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-  <div class="authbtns">
-    <button class="abtn primary" onclick="doLogin()">Se connecter</button>
-    <button class="abtn" onclick="doSignup()">Créer un compte</button>
+  <div id="authMain">
+    <input id="aEmail" type="email" placeholder="e-mail" autocomplete="username">
+    <div class="pwwrap">
+      <input id="aPass" type="password" placeholder="mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button type="button" class="eye" id="aEye" title="Afficher / masquer" onclick="togglePw('aPass','aEye')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <div class="authbtns">
+      <button class="abtn primary" onclick="doLogin()">Se connecter</button>
+      <button class="abtn" onclick="doSignup()">Créer un compte</button>
+    </div>
+    <button type="button" class="linkbtn" onclick="doForgot()">Mot de passe oublié ?</button>
   </div>
+
+  <div id="authRecovery" style="display:none">
+    <p class="authsub" style="margin-bottom:10px">Choisissez un nouveau mot de passe</p>
+    <div class="pwwrap">
+      <input id="aNew" type="password" placeholder="nouveau mot de passe (≥ 6)" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSetNewPassword()">
+      <button type="button" class="eye" id="aNewEye" title="Afficher / masquer" onclick="togglePw('aNew','aNewEye')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <div class="authbtns">
+      <button class="abtn primary" onclick="doSetNewPassword()">Enregistrer le mot de passe</button>
+    </div>
+  </div>
+
   <div class="authmsg" id="authMsg"></div>
 </div></div>
 
@@ -967,10 +991,39 @@ async function startApp(){
     bn.style.display='flex';
   }else bn.style.display='none';
 }
-function showAuth(msg){document.getElementById('authMsg').textContent=msg||'';document.getElementById('auth').classList.add('on');document.getElementById('btnLogout').style.display='none';}
+function showAuth(msg){document.getElementById('authRecovery').style.display='none';document.getElementById('authMain').style.display='';document.getElementById('authMsg').textContent=msg||'';document.getElementById('auth').classList.add('on');document.getElementById('btnLogout').style.display='none';}
+function togglePw(inpId,btnId){const i=document.getElementById(inpId);i.type=i.type==='password'?'text':'password';const b=document.getElementById(btnId);if(b)b.classList.toggle('on',i.type==='text');}
+async function doForgot(){
+  if(!sb){showAuth('Configuration Supabase manquante.');return;}
+  const email=$('#aEmail').value.trim();
+  if(!email){$('#authMsg').textContent='Saisissez d’abord votre e-mail, puis « Mot de passe oublié ».';return;}
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href.split('#')[0]});
+  $('#authMsg').textContent=error?('Échec : '+error.message):('E-mail de réinitialisation envoyé à '+email+'. Ouvrez le lien reçu pour définir un nouveau mot de passe.');
+}
+function showRecoveryUI(){
+  document.getElementById('authMain').style.display='none';
+  document.getElementById('authRecovery').style.display='';
+  document.getElementById('auth').classList.add('on');
+  document.getElementById('btnLogout').style.display='none';
+  $('#authMsg').textContent='Lien validé — définissez votre nouveau mot de passe.';
+}
+async function doSetNewPassword(){
+  if(!sb)return;
+  const pw=$('#aNew').value;
+  if(!pw||pw.length<6){$('#authMsg').textContent='Le mot de passe doit faire au moins 6 caractères.';return;}
+  const {error}=await sb.auth.updateUser({password:pw});
+  if(error){$('#authMsg').textContent='Échec : '+error.message;return;}
+  recovering=false;
+  try{history.replaceState(null,'',window.location.pathname+window.location.search);}catch(e){}
+  document.getElementById('authRecovery').style.display='none';
+  document.getElementById('authMain').style.display='';
+  toast('Mot de passe mis à jour');
+  refreshSession();
+}
 function hideAuth(){document.getElementById('auth').classList.remove('on');document.getElementById('btnLogout').style.display='';}
 async function refreshSession(){
   if(!sb){showAuth('⚠ Configuration Supabase manquante : renseignez SB_URL et SB_ANON en haut du fichier.');return;}
+  if(recovering){showRecoveryUI();return;}
   const {data:{session}}=await sb.auth.getSession();
   if(session){hideAuth();startApp();}else{showAuth('');}
 }
@@ -999,7 +1052,8 @@ async function doSeedImport(){
     await load();await loadRef();fillFilters();fillEquipLists();render();toast('Données initiales importées');
   }catch(e){toast('Erreur import : '+e.message);}
 }
-if(sb)sb.auth.onAuthStateChange((_e,_s)=>{});
+let recovering=/type=recovery/.test(location.hash);
+if(sb)sb.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY'){recovering=true;showRecoveryUI();}});
 refreshSession();
 </script>
 </body>
