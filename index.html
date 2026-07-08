@@ -275,6 +275,31 @@ tbody tr:hover{background:#16282f}
     .wk-tbl td{padding:8px 12px;border-bottom:1px solid #172a30;vertical-align:top}
     .wk-empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
   </style>
+  <section class="card wk-card collapsed" id="emCard">
+    <div class="wk-hd">
+      <button class="wk-toggle" id="emToggle" aria-expanded="false">
+        <svg class="wk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+        <span class="wk-title">DT/OT émises dans la semaine</span>
+        <span class="wk-count" id="emCount">0</span>
+      </button>
+      <div class="wk-ctrls" onclick="event.stopPropagation()">
+        <div class="wk-week">
+          <button class="wk-step" id="emPrev" title="Semaine précédente">◀</button>
+          <span>Semaine</span><input type="number" id="emNum" min="1" max="53" step="1">
+          <button class="wk-step" id="emNext" title="Semaine suivante">▶</button>
+        </div>
+        <button class="btn" id="emExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 4v16M4 10h16"/></svg>Export Excel</button>
+      </div>
+    </div>
+    <div class="wk-bd" id="emBody">
+      <div class="tbl-scroll">
+        <table class="wk-tbl"><thead><tr>
+          <th>N°</th><th>Type</th><th>Code</th><th>Équipement</th><th>Division</th><th>Description</th><th>Émis le</th><th>Statut</th>
+        </tr></thead><tbody id="emRows"></tbody></table>
+      </div>
+    </div>
+  </section>
+
   <section class="card wk-card collapsed" id="wkCard">
     <div class="wk-hd">
       <button class="wk-toggle" id="wkToggle" aria-expanded="false">
@@ -694,6 +719,75 @@ function wkExport(){
   dl(`Rapport_clotures_S${String(wk).padStart(2,'0')}_2026.xls`, '\uFEFF'+html, 'application/vnd.ms-excel');
   toast('Rapport Excel exporté');
 }
+/* ---------- rapport hebdomadaire des émissions ---------- */
+const EMKEY='srk_empanel_collapsed';
+function emSelected(){const v=parseInt(($('#emNum')||{}).value,10);return isNaN(v)?curWeek():v;}
+function emItems(){
+  const wk=emSelected();
+  return DATA.filter(r=>r.semEmise===wk)
+    .sort((a,b)=>{const ta=typeOf(a)==='DT'?0:1,tb=typeOf(b)==='DT'?0:1;if(ta!==tb)return ta-tb;return (a.dateEmission||'').localeCompare(b.dateEmission||'');});
+}
+function emReport(){
+  if(!$('#emRows'))return;
+  const items=emItems();
+  $('#emCount').textContent=items.length;
+  if(!items.length){$('#emRows').innerHTML=`<tr><td colspan="8"><div class="wk-empty">Aucune émission enregistrée pour la semaine ${emSelected()}.</div></td></tr>`;return;}
+  $('#emRows').innerHTML=items.map(r=>{
+    const t=typeOf(r);
+    return `<tr>
+      <td class="mono">${esc(r.n)}</td>
+      <td>${t?`<span class="tag tag--${t==='ANNULE'?'ANNULE':t}">${t}</span>`:'<span class="muted">—</span>'}</td>
+      <td class="mono muted" style="white-space:nowrap">${esc(r.code)||'—'}</td>
+      <td>${esc(r.equipement)||'<span class="muted">—</span>'}</td>
+      <td>${esc(r.division)||'<span class="muted">—</span>'}</td>
+      <td>${esc(cleanDesc(r.description))}</td>
+      <td class="mono muted" style="white-space:nowrap">${fmtD(r.dateEmission)}</td>
+      <td>${esc(r.statut)||'<span class="muted">—</span>'}</td>
+    </tr>`;}).join('');
+}
+function emSetCollapsed(c){
+  $('#emCard').classList.toggle('collapsed',c);
+  $('#emToggle').setAttribute('aria-expanded',String(!c));
+  try{localStorage.setItem(EMKEY,c?'1':'0');}catch(e){}
+}
+function emExport(){
+  const items=emItems(),wk=emSelected();
+  if(!items.length){toast('Aucune émission pour cette semaine');return;}
+  const today=new Date().toLocaleDateString('fr-FR');
+  const e2=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const heads=['N°','Type','Code','Équipement','Division','Description','Émis le','Statut'];
+  const th=heads.map(h=>`<th style="background:#F2A33C;color:#3a2405;border:1px solid #a86f1e;padding:7px 9px;font-weight:bold;text-align:left">${h}</th>`).join('');
+  const rows=items.map((r,i)=>{
+    const bg=i%2?'#fdf3e4':'#ffffff';const t=typeOf(r);
+    const cells=[r.n,t,r.code,r.equipement,r.division,cleanDesc(r.description),fmtD(r.dateEmission),r.statut];
+    return `<tr>${cells.map(c=>`<td style="background:${bg};border:1px solid #e6d3b4;padding:5px 9px;mso-number-format:'\\@'">${e2(c)}</td>`).join('')}</tr>`;
+  }).join('');
+  const nDT=items.filter(r=>typeOf(r)==='DT').length, nOT=items.filter(r=>typeOf(r)==='OT').length;
+  const nOuv=items.filter(r=>isOpen(r)).length;
+  const html=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>
+  <table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt">
+    <tr><td colspan="8" style="font-size:15pt;font-weight:bold;color:#5A3A00;padding:6px 4px">Rapport hebdomadaire des émissions — Sirakoro BID 100 MW</td></tr>
+    <tr><td colspan="8" style="color:#555;padding:2px 4px">Semaine ${wk} · ${items.length} émission(s) — ${nDT} DT · ${nOT} OT · ${nOuv} encore ouverte(s) — édité le ${today}</td></tr>
+    <tr><td colspan="8" style="height:6px"></td></tr>
+    <tr>${th}</tr>
+    ${rows}
+  </table></body></html>`;
+  dl(`Rapport_emissions_S${String(wk).padStart(2,'0')}_2026.xls`, '\uFEFF'+html, 'application/vnd.ms-excel');
+  toast('Rapport Excel exporté');
+}
+(function(){
+  const num=$('#emNum');if(!num)return;
+  num.value=curWeek();
+  let collapsed=true;try{if(localStorage.getItem(EMKEY)==='0')collapsed=false;}catch(e){}
+  emSetCollapsed(collapsed);
+  $('#emToggle').onclick=()=>emSetCollapsed(!$('#emCard').classList.contains('collapsed'));
+  num.addEventListener('input',emReport);
+  $('#emPrev').onclick=()=>{num.value=Math.max(1,emSelected()-1);emReport();};
+  $('#emNext').onclick=()=>{num.value=Math.min(53,emSelected()+1);emReport();};
+  $('#emExport').onclick=emExport;
+  emReport();
+})();
+
 (function(){
   const num=$('#wkNum');if(!num)return;
   num.value=curWeek();
@@ -706,7 +800,7 @@ function wkExport(){
   $('#wkExport').onclick=wkExport;
   weekReport();
 })();
-function render(){kpis();donut();vbars();hbars();insights();rowsHtml();weekReport();
+function render(){kpis();donut();vbars();hbars();insights();rowsHtml();weekReport();emReport();
   $('#chartScope').textContent=`${DATA.length} ordres · sem. 2→26`;
   $('#stamp').textContent='maj '+new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
 
